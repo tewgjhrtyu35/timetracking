@@ -1,0 +1,51 @@
+{
+  "name": "timetracking",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "dev:renderer": "vite",
+    "dev:web": "vite",
+    "dev:electron": "wait-on http://localhost:5173 && tsup electron/main.ts electron/preload.ts --format cjs --target node20 --outDir dist-electron --sourcemap --external electron --watch --onSuccess \"VITE_DEV_SERVER_URL=http://localhost:5173 electron dist-electron/main.cjs\"",
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "build:electron": "tsup electron/main.ts electron/preload.ts --format cjs --target node20 --outDir dist-electron --sourcemap --external electron --clean",
+    "build:web": "vite build",
+    "build": "npm run build:electron && vite build",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "start": "electron dist-electron/main.cjs",
+    "preview": "vite preview"
+  },
+  "build": {
+    "appId": "com.timetracking.app",
+    "productName": "Timetracking",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist-electron/**/*",
+      "dist/**/*"
+    ],
+    "mac": {
+      "target": ["dir"]
+    }
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.2.0",
+    "electron": "^33.3.1",
+    "electron-builder": "^26.0.12",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.5",
+    "wait-on": "^8.0.2"
+  }
+}
