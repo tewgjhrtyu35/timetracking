@@ -158,7 +158,7 @@ export const Stopwatch = React.forwardRef<
         {formatDuration(elapsedMs)}
       </div>
 
-      <div style={{ display: "flex", gap: 24, justifyContent: "center" }}>
+      <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
         {!isRunning ? (
           <button
             onClick={handleStart}
@@ -171,7 +171,8 @@ export const Stopwatch = React.forwardRef<
               background: "rgba(80, 200, 120, 0.18)",
               color: "#e9edf5",
               cursor: "pointer",
-              minWidth: 200,
+              minWidth: "140px",
+              flex: 1,
               transition: "all 0.2s",
             }}
           >
@@ -191,7 +192,8 @@ export const Stopwatch = React.forwardRef<
                   background: "rgba(255, 200, 80, 0.18)",
                   color: "#e9edf5",
                   cursor: "pointer",
-                  minWidth: 200,
+                  minWidth: "140px",
+                  flex: 1,
                   transition: "all 0.2s",
                 }}
               >
@@ -209,7 +211,8 @@ export const Stopwatch = React.forwardRef<
                   background: "rgba(255, 200, 80, 0.18)",
                   color: "#e9edf5",
                   cursor: "pointer",
-                  minWidth: 200,
+                  minWidth: "140px",
+                  flex: 1,
                   transition: "all 0.2s",
                 }}
               >
@@ -228,7 +231,8 @@ export const Stopwatch = React.forwardRef<
                 background: "rgba(240, 90, 90, 0.18)",
                 color: "#e9edf5",
                 cursor: "pointer",
-                minWidth: 200,
+                minWidth: "140px",
+                flex: 1,
                 transition: "all 0.2s",
               }}
             >

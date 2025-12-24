@@ -52,7 +52,7 @@ export function App() {
         padding: 24,
       }}
     >
-      <header style={{ display: "flex", alignItems: "center", gap: 24 }}>
+      <header style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
         <h1 style={{ margin: 0, fontSize: 18, letterSpacing: 0.4 }}>
           Timetracking
         </h1>
@@ -95,11 +95,10 @@ export function App() {
         <main
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 420px",
-            gridTemplateRows: "1fr auto",
+            // Responsive grid: stack on mobile (<800px), 2 cols on desktop
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 400px), 1fr))",
             gap: 24,
-            alignItems: "stretch",
-            height: "100%",
+            alignItems: "start",
           }}
         >
           <section
@@ -111,6 +110,8 @@ export function App() {
               display: "flex",
               flexDirection: "column",
               containerType: "inline-size",
+              // Ensure reasonable height for the clock
+              minHeight: 300,
             }}
           >
             <div style={{ flex: 1 }}>
@@ -165,5 +166,3 @@ export function App() {
     </div>
   );
 }
-
-
