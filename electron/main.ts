@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
-import { addEntry, listEntries } from "./store";
-import type { TimeEntryDraft } from "../src/types";
+import { addEntry, deleteEntry, listEntries, updateEntry } from "./store";
+import type { TimeEntry, TimeEntryDraft } from "../src/types";
 
 // NOTE: We bundle Electron files as CJS (`.cjs`) so Node provides `__dirname` at runtime.
 declare const __dirname: string;
@@ -34,6 +34,8 @@ function createWindow() {
 app.whenReady().then(() => {
   ipcMain.handle("entries:list", () => listEntries());
   ipcMain.handle("entries:add", (_evt, draft: TimeEntryDraft) => addEntry(draft));
+  ipcMain.handle("entries:update", (_evt, entry: TimeEntry) => updateEntry(entry));
+  ipcMain.handle("entries:delete", (_evt, id: string) => deleteEntry(id));
 
   createWindow();
 
@@ -45,5 +47,3 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
-
-
