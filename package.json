@@ -13,6 +13,8 @@
     "build:web": "vite build",
     "build": "npm run build:electron && vite build",
     "pack": "npm run build && electron-builder --dir",
+    "predeploy": "npm run build:web",
+    "deploy": "gh-pages -d dist",
     "dist": "npm run build && electron-builder",
     "start": "electron dist-electron/main.cjs",
     "preview": "vite preview"
@@ -28,7 +30,9 @@
       "dist/**/*"
     ],
     "mac": {
-      "target": ["dir"]
+      "target": [
+        "dir"
+      ]
     }
   },
   "dependencies": {
@@ -43,6 +47,7 @@
     "concurrently": "^9.2.0",
     "electron": "^33.3.1",
     "electron-builder": "^26.0.12",
+    "gh-pages": "^6.3.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.3",
     "vite": "^6.0.5",

@@ -6,6 +6,9 @@ import { CategoryModal } from "./components/CategoryModal";
 import { CategoryTotals } from "./components/CategoryTotals";
 import { CountdownTimer } from "./components/CountdownTimer";
 import { ManualEntry } from "./components/ManualEntry";
+import { HistoryView } from "./components/HistoryView";
+
+type View = "timer" | "history";
 
 export function App() {
   const stopwatchRef = React.useRef<StopwatchHandle>(null);
@@ -15,6 +18,7 @@ export function App() {
     null,
   );
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [view, setView] = React.useState<View>("timer");
 
   React.useEffect(() => {
     void (async () => {
@@ -48,71 +52,109 @@ export function App() {
         padding: 24,
       }}
     >
-      <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+      <header style={{ display: "flex", alignItems: "center", gap: 24 }}>
         <h1 style={{ margin: 0, fontSize: 18, letterSpacing: 0.4 }}>
           Timetracking
         </h1>
-        <span style={{ opacity: 0.7, fontSize: 12 }}>Today</span>
+        
+        <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,0.05)", padding: 4, borderRadius: 8 }}>
+          <button
+            onClick={() => setView("timer")}
+            style={{
+              border: "none",
+              background: view === "timer" ? "rgba(255,255,255,0.1)" : "transparent",
+              color: view === "timer" ? "white" : "rgba(255,255,255,0.5)",
+              padding: "4px 12px",
+              borderRadius: 6,
+              fontSize: 13,
+              cursor: "pointer",
+              fontWeight: 500,
+            }}
+          >
+            Timer
+          </button>
+          <button
+            onClick={() => setView("history")}
+            style={{
+              border: "none",
+              background: view === "history" ? "rgba(255,255,255,0.1)" : "transparent",
+              color: view === "history" ? "white" : "rgba(255,255,255,0.5)",
+              padding: "4px 12px",
+              borderRadius: 6,
+              fontSize: 13,
+              cursor: "pointer",
+              fontWeight: 500,
+            }}
+          >
+            History
+          </button>
+        </div>
       </header>
 
-      <main
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 420px",
-          gridTemplateRows: "1fr auto",
-          gap: 24,
-          alignItems: "stretch",
-          height: "100%",
-        }}
-      >
-        <section
-          style={{
-            border: "1px solid rgba(255,255,255,0.10)",
-            borderRadius: 16,
-            padding: 24,
-            background: "rgba(255,255,255,0.03)",
-            display: "flex",
-            flexDirection: "column",
-            containerType: "inline-size",
-          }}
-        >
-          <div style={{ flex: 1 }}>
-            <Stopwatch
-              ref={stopwatchRef}
-              onStopped={(draft) => {
-                setPendingDraft(draft);
-                setIsModalOpen(true);
-              }}
-            />
-          </div>
-          
-          <div style={{ marginTop: 24 }}>
-             <CountdownTimer />
-          </div>
-        </section>
-
-        <section
+      {view === "timer" ? (
+        <main
           style={{
             display: "grid",
+            gridTemplateColumns: "1fr 420px",
             gridTemplateRows: "1fr auto",
-            gap: 16,
-            alignSelf: "start",
+            gap: 24,
+            alignItems: "stretch",
+            height: "100%",
           }}
         >
-          <div
+          <section
             style={{
               border: "1px solid rgba(255,255,255,0.10)",
               borderRadius: 16,
-              padding: 16,
-              background: "rgba(255,255,255,0.02)",
+              padding: 24,
+              background: "rgba(255,255,255,0.03)",
+              display: "flex",
+              flexDirection: "column",
+              containerType: "inline-size",
             }}
           >
-            <CategoryTotals entries={entries} />
-          </div>
+            <div style={{ flex: 1 }}>
+              <Stopwatch
+                ref={stopwatchRef}
+                onStopped={(draft) => {
+                  setPendingDraft(draft);
+                  setIsModalOpen(true);
+                }}
+              />
+            </div>
+            
+            <div style={{ marginTop: 24 }}>
+               <CountdownTimer />
+            </div>
+          </section>
 
-          <ManualEntry onEntryAdded={(entry) => setEntries(prev => [entry, ...prev])} />
-        </section>
-      </main>
+          <section
+            style={{
+              display: "grid",
+              gridTemplateRows: "1fr auto",
+              gap: 16,
+              alignSelf: "start",
+            }}
+          >
+            <div
+              style={{
+                border: "1px solid rgba(255,255,255,0.10)",
+                borderRadius: 16,
+                padding: 16,
+                background: "rgba(255,255,255,0.02)",
+              }}
+            >
+              <CategoryTotals entries={entries} />
+            </div>
+
+            <ManualEntry onEntryAdded={(entry) => setEntries(prev => [entry, ...prev])} />
+          </section>
+        </main>
+      ) : (
+        <main style={{ maxWidth: 800, margin: "0 auto", width: "100%" }}>
+          <HistoryView entries={entries} />
+        </main>
+      )}
 
       <CategoryModal
         isOpen={isModalOpen}
