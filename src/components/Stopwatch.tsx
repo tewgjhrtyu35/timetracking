@@ -31,6 +31,51 @@ export const Stopwatch = React.forwardRef<
   const rafRef = React.useRef<number | null>(null);
   const lastResumeTimeRef = React.useRef<number | null>(null);
 
+  // Persistence logic
+  React.useEffect(() => {
+    // Restore on mount
+    try {
+      const saved = localStorage.getItem("timetracking-active-session");
+      if (saved) {
+        const state = JSON.parse(saved);
+        // If it was running, update elapsed time
+        let restoredElapsed = state.accumulatedMs;
+        if (state.isRunning && !state.isPaused && state.lastResumeTime) {
+          restoredElapsed += performance.now() - (Date.now() - (Date.now() - (performance.now() - (performance.now() - (Date.now() - state.lastResumeTime))))); 
+          // Correction: state.lastResumeTime is absolute Date.now() timestamp
+          // We need: elapsed = acc + (Date.now() - state.lastResumeTime)
+          restoredElapsed = state.accumulatedMs + (Date.now() - state.lastResumeTime);
+        }
+
+        setIsRunning(state.isRunning);
+        setIsPaused(state.isPaused);
+        setAccumulatedMs(state.accumulatedMs);
+        setElapsedMs(restoredElapsed);
+        
+        // Restore refs
+        if (state.startedAt) startedAtRef.current = new Date(state.startedAt);
+        if (state.lastResumeTime) {
+           // We need lastResumeTimeRef to be in performance.now() scale
+           // offset = performance.now() - Date.now()
+           // ref = state.lastResumeTime + offset
+           const offset = performance.now() - Date.now();
+           lastResumeTimeRef.current = state.lastResumeTime + offset;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to restore session", e);
+    }
+  }, []);
+
+  const saveState = React.useCallback((newState: any) => {
+    localStorage.setItem("timetracking-active-session", JSON.stringify({
+      ...newState,
+      // Store timestamps as absolute Date.now() for survival across reloads
+      lastResumeTime: newState.isRunning && !newState.isPaused ? Date.now() : null,
+      startedAt: startedAtRef.current?.toISOString(),
+    }));
+  }, []);
+
   const stopInternal = React.useCallback(() => {
     if (!startedAtRef.current) return;
     const stoppedAt = new Date();
@@ -44,6 +89,8 @@ export const Stopwatch = React.forwardRef<
 
     setIsRunning(false);
     setIsPaused(false);
+    localStorage.removeItem("timetracking-active-session"); // Clear persistence
+    
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
 
@@ -65,6 +112,7 @@ export const Stopwatch = React.forwardRef<
         setAccumulatedMs(0);
         startedAtRef.current = null;
         lastResumeTimeRef.current = null;
+        localStorage.removeItem("timetracking-active-session");
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       },
@@ -107,22 +155,26 @@ export const Stopwatch = React.forwardRef<
     setElapsedMs(0);
     setIsRunning(true);
     setIsPaused(false);
+    
+    saveState({ isRunning: true, isPaused: false, accumulatedMs: 0 });
   }
 
   function handlePause() {
     if (!isRunning || isPaused) return;
     
     // Capture elapsed time into accumulated
+    let newTotal = accumulatedMs;
     if (lastResumeTimeRef.current != null) {
       const now = performance.now();
       const sessionDuration = now - lastResumeTimeRef.current;
-      const newTotal = accumulatedMs + sessionDuration;
+      newTotal = accumulatedMs + sessionDuration;
       setAccumulatedMs(newTotal);
       setElapsedMs(newTotal);
     }
     
     setIsPaused(true);
     lastResumeTimeRef.current = null;
+    saveState({ isRunning: true, isPaused: true, accumulatedMs: newTotal });
   }
 
   function handleResume() {
@@ -130,6 +182,7 @@ export const Stopwatch = React.forwardRef<
     
     lastResumeTimeRef.current = performance.now();
     setIsPaused(false);
+    saveState({ isRunning: true, isPaused: false, accumulatedMs });
   }
 
   function handleStop() {
@@ -244,5 +297,3 @@ export const Stopwatch = React.forwardRef<
     </div>
   );
 });
-
-
