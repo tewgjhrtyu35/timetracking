@@ -17,12 +17,27 @@ export function CountdownTimer() {
   const endTimeRef = React.useRef<number | null>(null);
   const rafRef = React.useRef<number | null>(null);
   const pausedTimeLeftRef = React.useRef<number | null>(null);
+  
+  // Persistent AudioContext ref - created once on first user interaction
+  const audioContextRef = React.useRef<AudioContext | null>(null);
+
+  function getAudioContext(): AudioContext | null {
+    if (audioContextRef.current) return audioContextRef.current;
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return null;
+    audioContextRef.current = new AudioContextClass();
+    return audioContextRef.current;
+  }
 
   function playBeep() {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
     
-    const ctx = new AudioContext();
+    // Ensure context is running (may be suspended)
+    if (ctx.state === "suspended") {
+      ctx.resume();
+    }
+    
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
@@ -85,6 +100,13 @@ export function CountdownTimer() {
   function handleStart() {
     const min = parseInt(durationInput, 10);
     if (isNaN(min) || min <= 0) return;
+    
+    // Initialize and resume AudioContext on user gesture to unlock audio
+    const ctx = getAudioContext();
+    if (ctx && ctx.state === "suspended") {
+      ctx.resume();
+    }
+    
     startTimer(min);
   }
 

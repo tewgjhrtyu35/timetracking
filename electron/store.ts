@@ -45,19 +45,4 @@ export function deleteEntry(id: string): void {
   store.set("entries", next);
 }
 
-export function updateEntry(updated: TimeEntry): void {
-  const entries = listEntries();
-  const index = entries.findIndex((e) => e.id === updated.id);
-  if (index !== -1) {
-    entries[index] = updated;
-    store.set("entries", entries);
-  }
-}
-
-export function deleteEntry(id: string): void {
-  const entries = listEntries();
-  const next = entries.filter((e) => e.id !== id);
-  store.set("entries", next);
-}
-
 
