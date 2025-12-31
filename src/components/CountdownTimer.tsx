@@ -9,7 +9,7 @@ function formatDuration(ms: number) {
 }
 
 export function CountdownTimer() {
-  const [durationInput, setDurationInput] = React.useState("25");
+  const [durationInput, setDurationInput] = React.useState("5");
   const [timeLeftMs, setTimeLeftMs] = React.useState<number | null>(null);
   const [isActive, setIsActive] = React.useState(false);
   const [isPaused, setIsPaused] = React.useState(false);
@@ -46,8 +46,8 @@ export function CountdownTimer() {
 
     osc.type = "sine";
     osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
-    gain.gain.setValueAtTime(0.1, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.5);
+    gain.gain.setValueAtTime(0.5, ctx.currentTime); // Louder volume (was 0.1)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
 
     osc.start();
     osc.stop(ctx.currentTime + 0.5);
