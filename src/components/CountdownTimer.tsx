@@ -1,4 +1,6 @@
 import React from "react";
+import { api } from "../api/client";
+import type { TimeEntry } from "../types";
 
 function formatDuration(ms: number) {
   const totalSeconds = Math.ceil(ms / 1000);
@@ -8,11 +10,16 @@ function formatDuration(ms: number) {
   return `${pad2(minutes)}:${pad2(seconds)}`;
 }
 
-export function CountdownTimer() {
+type Props = {
+  onEntryAdded?: (entry: TimeEntry) => void;
+};
+
+export function CountdownTimer({ onEntryAdded }: Props) {
   const [durationInput, setDurationInput] = React.useState("5");
   const [timeLeftMs, setTimeLeftMs] = React.useState<number | null>(null);
   const [isActive, setIsActive] = React.useState(false);
   const [isPaused, setIsPaused] = React.useState(false);
+  const [originalDurationMs, setOriginalDurationMs] = React.useState<number | null>(null);
 
   const endTimeRef = React.useRef<number | null>(null);
   const rafRef = React.useRef<number | null>(null);
@@ -77,6 +84,22 @@ export function CountdownTimer() {
         endTimeRef.current = null;
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
         playAlarm();
+        
+        // Log the timer duration to "Turnovers" category
+        if (originalDurationMs) {
+          const now = new Date();
+          const stoppedAt = now.toISOString();
+          const startedAt = new Date(now.getTime() - originalDurationMs).toISOString();
+          
+          api.addEntry({
+            startedAt,
+            stoppedAt,
+            durationMs: originalDurationMs,
+            category: "Turnovers",
+          }).then((saved) => {
+            onEntryAdded?.(saved);
+          });
+        }
         return;
       }
 
@@ -92,6 +115,7 @@ export function CountdownTimer() {
   function startTimer(minutes: number) {
     const ms = minutes * 60 * 1000;
     setTimeLeftMs(ms);
+    setOriginalDurationMs(ms);
     endTimeRef.current = performance.now() + ms;
     setIsActive(true);
     setIsPaused(false);
@@ -127,6 +151,7 @@ export function CountdownTimer() {
     setIsActive(false);
     setIsPaused(false);
     setTimeLeftMs(null);
+    setOriginalDurationMs(null);
     endTimeRef.current = null;
     pausedTimeLeftRef.current = null;
   }

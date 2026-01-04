@@ -125,7 +125,7 @@ export function App() {
             </div>
             
             <div style={{ marginTop: 24 }}>
-               <CountdownTimer />
+               <CountdownTimer onEntryAdded={(entry) => setEntries(prev => [entry, ...prev])} />
             </div>
           </section>
 
