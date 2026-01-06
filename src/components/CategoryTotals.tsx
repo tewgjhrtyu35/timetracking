@@ -1,5 +1,6 @@
 import React from "react";
 import type { CategoryTotal, TimeEntry } from "../types";
+import { getLogicalDate, getLogicalDayStart, getLogicalDayEnd } from "../utils/dateUtils";
 
 function formatDuration(ms: number) {
   const totalSeconds = Math.floor(ms / 1000);
@@ -12,15 +13,11 @@ function formatDuration(ms: number) {
   return `${pad2(minutes)}:${pad2(seconds)}`;
 }
 
-function startOfLocalDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
 function getTodayKey(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
+  const logical = getLogicalDate(new Date());
+  const y = logical.getFullYear();
+  const m = String(logical.getMonth() + 1).padStart(2, "0");
+  const d = String(logical.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
@@ -49,8 +46,8 @@ function computeTodayTotals(entries: TimeEntry[]): {
   firstEntryStartedAt: string | null;
 } {
   const now = new Date();
-  const dayStart = startOfLocalDay(now).getTime();
-  const dayEnd = new Date(dayStart + 24 * 60 * 60 * 1000).getTime();
+  const dayStart = getLogicalDayStart(now).getTime();
+  const dayEnd = getLogicalDayEnd(now).getTime();
 
   const map = new Map<string, { display: string; durationMs: number }>();
   let grandTotalMs = 0;
@@ -118,7 +115,8 @@ export function CategoryTotals({ entries }: { entries: TimeEntry[] }) {
     if (startTimeOverride) {
       const parsed = parseTimeHHMM(startTimeOverride);
       if (parsed) {
-        const today = startOfLocalDay(new Date());
+        const logical = getLogicalDate(new Date());
+        const today = new Date(logical.getFullYear(), logical.getMonth(), logical.getDate());
         today.setHours(parsed.hours, parsed.minutes, 0, 0);
         return today.getTime();
       }

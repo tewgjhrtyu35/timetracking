@@ -1,6 +1,7 @@
 import React from "react";
 import type { TimeEntry } from "../types";
 import { api } from "../api/client";
+import { getLogicalDate } from "../utils/dateUtils";
 
 function formatDuration(ms: number) {
   const totalSeconds = Math.floor(ms / 1000);
@@ -13,7 +14,8 @@ function formatDuration(ms: number) {
 
 function getLocalDayKey(isoString: string) {
   const d = new Date(isoString);
-  return d.toLocaleDateString(undefined, {
+  const logical = getLogicalDate(d);
+  return logical.toLocaleDateString(undefined, {
     weekday: "short",
     year: "numeric",
     month: "short",
