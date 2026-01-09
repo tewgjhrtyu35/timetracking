@@ -30,6 +30,25 @@ export const Stopwatch = React.forwardRef<
   const startedAtRef = React.useRef<Date | null>(null);
   const rafRef = React.useRef<number | null>(null);
   const lastResumeTimeRef = React.useRef<number | null>(null);
+  const wakeLockRef = React.useRef<WakeLockSentinel | null>(null);
+
+  // Screen Wake Lock functions to keep screen on while stopwatch is running
+  const requestWakeLock = React.useCallback(async () => {
+    if ("wakeLock" in navigator) {
+      try {
+        wakeLockRef.current = await navigator.wakeLock.request("screen");
+      } catch (err) {
+        // Wake lock request failed (e.g., low battery, not supported)
+      }
+    }
+  }, []);
+
+  const releaseWakeLock = React.useCallback(() => {
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release();
+      wakeLockRef.current = null;
+    }
+  }, []);
 
   // Persistence logic
   React.useEffect(() => {
@@ -61,11 +80,16 @@ export const Stopwatch = React.forwardRef<
            const offset = performance.now() - Date.now();
            lastResumeTimeRef.current = state.lastResumeTime + offset;
         }
+        
+        // Request wake lock if stopwatch was running
+        if (state.isRunning && !state.isPaused) {
+          requestWakeLock();
+        }
       }
     } catch (e) {
       console.error("Failed to restore session", e);
     }
-  }, []);
+  }, [requestWakeLock]);
 
   const saveState = React.useCallback((newState: any) => {
     localStorage.setItem("timetracking-active-session", JSON.stringify({
@@ -90,6 +114,7 @@ export const Stopwatch = React.forwardRef<
     setIsRunning(false);
     setIsPaused(false);
     localStorage.removeItem("timetracking-active-session"); // Clear persistence
+    releaseWakeLock();
     
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
@@ -100,7 +125,7 @@ export const Stopwatch = React.forwardRef<
       durationMs: finalDuration,
       category: "",
     });
-  }, [accumulatedMs, isRunning, isPaused, onStopped]);
+  }, [accumulatedMs, isRunning, isPaused, onStopped, releaseWakeLock]);
 
   React.useImperativeHandle(
     ref,
@@ -145,6 +170,22 @@ export const Stopwatch = React.forwardRef<
     };
   }, [isRunning, isPaused, accumulatedMs]);
 
+  // Re-acquire wake lock when tab becomes visible again
+  React.useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible" && isRunning && !isPaused) {
+        requestWakeLock();
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [isRunning, isPaused, requestWakeLock]);
+
+  // Clean up wake lock on unmount
+  React.useEffect(() => {
+    return () => releaseWakeLock();
+  }, [releaseWakeLock]);
+
   function handleStart() {
     if (isRunning) return; // Already running or paused
     
@@ -157,6 +198,7 @@ export const Stopwatch = React.forwardRef<
     setIsPaused(false);
     
     saveState({ isRunning: true, isPaused: false, accumulatedMs: 0 });
+    requestWakeLock();
   }
 
   function handlePause() {
@@ -175,6 +217,7 @@ export const Stopwatch = React.forwardRef<
     setIsPaused(true);
     lastResumeTimeRef.current = null;
     saveState({ isRunning: true, isPaused: true, accumulatedMs: newTotal });
+    releaseWakeLock();
   }
 
   function handleResume() {
@@ -183,6 +226,7 @@ export const Stopwatch = React.forwardRef<
     lastResumeTimeRef.current = performance.now();
     setIsPaused(false);
     saveState({ isRunning: true, isPaused: false, accumulatedMs });
+    requestWakeLock();
   }
 
   function handleStop() {
