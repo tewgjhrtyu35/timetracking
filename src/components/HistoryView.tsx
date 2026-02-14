@@ -1,7 +1,9 @@
 import React from "react";
-import type { TimeEntry } from "../types";
+import type { CategoryTotal, TimeEntry, TimeEntryDraft } from "../types";
 import { api } from "../api/client";
 import { getLogicalDate } from "../utils/dateUtils";
+import { applyCapsToCategoryTotals, normalizeCategoryKey } from "../utils/categoryCaps";
+import { enforceCappedEdit } from "../utils/entryEnforcement";
 
 function formatDuration(ms: number) {
   const totalSeconds = Math.floor(ms / 1000);
@@ -28,7 +30,8 @@ type DaySummary = {
   totalMs: number;
   categories: {
     name: string;
-    totalMs: number;
+    totalMs: number; // raw category total based on stored entries
+    displayTotalMs: number; // cap-adjusted total for summary row
     entries: TimeEntry[];
   }[];
 };
@@ -64,18 +67,44 @@ export function HistoryView({ entries: initialEntries }: { entries: TimeEntry[] 
     const result: DaySummary[] = [];
     for (const [dateKey, catMap] of days.entries()) {
       let dayTotal = 0;
-      const categories: { name: string; totalMs: number; entries: TimeEntry[] }[] = [];
+      const categories: { name: string; totalMs: number; displayTotalMs: number; entries: TimeEntry[] }[] = [];
       
       for (const [name, entryList] of catMap.entries()) {
         // Sort entries by time desc
         entryList.sort((a, b) => new Date(b.stoppedAt).getTime() - new Date(a.stoppedAt).getTime());
         const catTotal = entryList.reduce((sum, e) => sum + e.durationMs, 0);
         
-        categories.push({ name, totalMs: catTotal, entries: entryList });
+        categories.push({ name, totalMs: catTotal, displayTotalMs: catTotal, entries: entryList });
         dayTotal += catTotal;
       }
-      
-      categories.sort((a, b) => b.totalMs - a.totalMs);
+
+      const adjustedTotals = applyCapsToCategoryTotals(
+        categories.map((cat): CategoryTotal => ({
+          category: cat.name,
+          durationMs: cat.totalMs,
+        })),
+      );
+      const adjustedByKey = new Map(
+        adjustedTotals.map((total) => [normalizeCategoryKey(total.category), total]),
+      );
+
+      const existingByKey = new Set(categories.map((cat) => normalizeCategoryKey(cat.name)));
+      for (const cat of categories) {
+        const adjusted = adjustedByKey.get(normalizeCategoryKey(cat.name));
+        cat.displayTotalMs = adjusted?.durationMs ?? 0;
+      }
+      for (const adjusted of adjustedTotals) {
+        const key = normalizeCategoryKey(adjusted.category);
+        if (existingByKey.has(key)) continue;
+        categories.push({
+          name: adjusted.category,
+          totalMs: 0,
+          displayTotalMs: adjusted.durationMs,
+          entries: [],
+        });
+      }
+
+      categories.sort((a, b) => b.displayTotalMs - a.displayTotalMs);
       result.push({ dateKey, totalMs: dayTotal, categories });
     }
 
@@ -103,18 +132,16 @@ export function HistoryView({ entries: initialEntries }: { entries: TimeEntry[] 
     if (isNaN(min) || min <= 0) return;
 
     const newDurationMs = Math.floor(min * 60000);
-    const updated = {
-      ...originalEntry,
+    const updatedDraft: TimeEntryDraft = {
       category: editCategory.trim(),
+      stoppedAt: originalEntry.stoppedAt,
       durationMs: newDurationMs,
       // Adjust start time to match new duration (keeping stop time fixed)
       startedAt: new Date(new Date(originalEntry.stoppedAt).getTime() - newDurationMs).toISOString(),
     };
 
-    await api.updateEntry(updated);
-    
-    // Update local list
-    setEntries(prev => prev.map(e => e.id === updated.id ? updated : e));
+    const refreshed = await enforceCappedEdit(api, originalEntry.id, updatedDraft);
+    setEntries(refreshed);
     setEditingId(null);
   }
 
@@ -184,7 +211,7 @@ export function HistoryView({ entries: initialEntries }: { entries: TimeEntry[] 
                       <span style={{ opacity: 0.9 }}>{cat.name}</span>
                     </div>
                     <div style={{ opacity: 0.6, fontVariantNumeric: "tabular-nums" }}>
-                      {formatDuration(cat.totalMs)}
+                      {formatDuration(cat.displayTotalMs)}
                     </div>
                   </div>
 

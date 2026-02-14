@@ -7,6 +7,7 @@ import { CategoryTotals } from "./components/CategoryTotals";
 import { CountdownTimer } from "./components/CountdownTimer";
 import { ManualEntry } from "./components/ManualEntry";
 import { HistoryView } from "./components/HistoryView";
+import { enforceCappedAdd } from "./utils/entryEnforcement";
 
 type View = "timer" | "history";
 
@@ -29,8 +30,8 @@ export function App() {
 
   async function handleSubmitCategory(category: string) {
     if (!pendingDraft) return;
-    const saved = await api.addEntry({ ...pendingDraft, category });
-    setEntries((prev) => [saved, ...prev]);
+    const saved = await enforceCappedAdd(api, { ...pendingDraft, category });
+    setEntries((prev) => [...saved, ...prev]);
     setPendingDraft(null);
     setIsModalOpen(false);
     stopwatchRef.current?.reset();

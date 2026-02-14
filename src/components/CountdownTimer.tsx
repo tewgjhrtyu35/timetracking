@@ -1,6 +1,7 @@
 import React from "react";
 import { api } from "../api/client";
 import type { TimeEntry } from "../types";
+import { enforceCappedAdd } from "../utils/entryEnforcement";
 
 function formatDuration(ms: number) {
   const totalSeconds = Math.ceil(ms / 1000);
@@ -91,13 +92,15 @@ export function CountdownTimer({ onEntryAdded }: Props) {
           const stoppedAt = now.toISOString();
           const startedAt = new Date(now.getTime() - originalDurationMs).toISOString();
           
-          api.addEntry({
+          enforceCappedAdd(api, {
             startedAt,
             stoppedAt,
             durationMs: originalDurationMs,
             category: "Turnovers",
-          }).then((saved) => {
-            onEntryAdded?.(saved);
+          }).then((savedEntries) => {
+            for (const saved of savedEntries) {
+              onEntryAdded?.(saved);
+            }
           });
         }
         return;
@@ -274,4 +277,3 @@ export function CountdownTimer({ onEntryAdded }: Props) {
     </div>
   );
 }
-

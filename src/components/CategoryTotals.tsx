@@ -1,6 +1,7 @@
 import React from "react";
 import type { CategoryTotal, TimeEntry } from "../types";
 import { getLogicalDate, getLogicalDayStart, getLogicalDayEnd } from "../utils/dateUtils";
+import { applyCapsToCategoryTotals } from "../utils/categoryCaps";
 
 function formatDuration(ms: number) {
   const totalSeconds = Math.floor(ms / 1000);
@@ -76,12 +77,11 @@ function computeTodayTotals(entries: TimeEntry[]): {
     grandTotalMs += e.durationMs;
   }
 
-  const totals: CategoryTotal[] = Array.from(map.values()).map((v) => ({
+  const rawTotals: CategoryTotal[] = Array.from(map.values()).map((v) => ({
     category: v.display,
     durationMs: v.durationMs,
   }));
-
-  totals.sort((a, b) => b.durationMs - a.durationMs);
+  const totals = applyCapsToCategoryTotals(rawTotals);
   return { totals, grandTotalMs, firstEntryStartedAt };
 }
 
@@ -294,5 +294,4 @@ export function CategoryTotals({ entries }: { entries: TimeEntry[] }) {
     </div>
   );
 }
-
 

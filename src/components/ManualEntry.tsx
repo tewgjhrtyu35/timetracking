@@ -1,6 +1,7 @@
 import React from "react";
 import type { TimeEntry } from "../types";
 import { api } from "../api/client";
+import { enforceCappedAdd } from "../utils/entryEnforcement";
 
 export function ManualEntry(props: {
   onEntryAdded: (entry: TimeEntry) => void;
@@ -21,14 +22,16 @@ export function ManualEntry(props: {
       // Construct a past start time so the duration is correct
       const start = new Date(now.getTime() - durationMs);
 
-      const entry = await api.addEntry({
+      const saved = await enforceCappedAdd(api, {
         category: category.trim(),
         startedAt: start.toISOString(),
         stoppedAt: now.toISOString(),
         durationMs,
       });
 
-      props.onEntryAdded(entry);
+      for (const entry of saved) {
+        props.onEntryAdded(entry);
+      }
       setCategory("");
       setMinutes("");
     } finally {
@@ -36,7 +39,7 @@ export function ManualEntry(props: {
     }
   }
 
-  const PRESETS = ["Entertainment", "Work", "Python", "Study"];
+  const PRESETS = ["Entertainment", "Work", "Python", "Study", "Shower"];
   const DURATION_PRESETS = [15, 30, 45, 60];
 
   return (
