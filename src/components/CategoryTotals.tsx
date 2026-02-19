@@ -1,7 +1,12 @@
 import React from "react";
 import type { CategoryTotal, TimeEntry } from "../types";
 import { getLogicalDate, getLogicalDayStart, getLogicalDayEnd } from "../utils/dateUtils";
-import { applyCapsToCategoryTotals, toAggregationCategory } from "../utils/categoryCaps";
+import {
+  applyCapsToCategoryTotals,
+  ENTERTAINMENT_CATEGORY,
+  isAutoEntertainmentCategory,
+  toAggregationCategory,
+} from "../utils/categoryCaps";
 
 function formatDuration(ms: number) {
   const totalSeconds = Math.floor(ms / 1000);
@@ -14,21 +19,36 @@ function formatDuration(ms: number) {
   return `${pad2(minutes)}:${pad2(seconds)}`;
 }
 
+function overlapMs(startA: number, endA: number, startB: number, endB: number): number {
+  const start = Math.max(startA, startB);
+  const end = Math.min(endA, endB);
+  return Math.max(0, end - start);
+}
+
 function computeTodayTotals(entries: TimeEntry[]): {
   totals: CategoryTotal[];
   grandTotalMs: number;
 } {
   const now = new Date();
+  const nowMs = now.getTime();
   const dayStart = getLogicalDayStart(now).getTime();
   const dayEnd = getLogicalDayEnd(now).getTime();
+  const logical = getLogicalDate(now);
+  const baseline = new Date(logical.getFullYear(), logical.getMonth(), logical.getDate());
+  baseline.setHours(8, 30, 0, 0);
+  const baselineMs = baseline.getTime();
+  const windowStartMs = Math.max(dayStart, baselineMs);
+  const windowEndMs = nowMs;
 
   const map = new Map<string, { display: string; durationMs: number }>();
   let grandTotalMs = 0;
+  let loggedSinceBaselineMs = 0;
 
   for (const e of entries) {
     const t = new Date(e.stoppedAt).getTime();
     if (Number.isNaN(t)) continue;
     if (t < dayStart || t >= dayEnd) continue;
+    if (isAutoEntertainmentCategory(e.category)) continue;
 
     const display = toAggregationCategory(e.category) || "Uncategorized";
     const key = display.toLowerCase();
@@ -38,6 +58,30 @@ function computeTodayTotals(entries: TimeEntry[]): {
     else map.set(key, { display, durationMs: e.durationMs });
 
     grandTotalMs += e.durationMs;
+
+    const startedAtMs = new Date(e.startedAt).getTime();
+    const stoppedAtMs = new Date(e.stoppedAt).getTime();
+    if (!Number.isNaN(startedAtMs) && !Number.isNaN(stoppedAtMs) && stoppedAtMs > startedAtMs) {
+      loggedSinceBaselineMs += overlapMs(startedAtMs, stoppedAtMs, windowStartMs, windowEndMs);
+    }
+  }
+
+  if (windowEndMs > windowStartMs) {
+    const elapsedSinceBaselineMs = windowEndMs - windowStartMs;
+    const unloggedMs = Math.max(0, elapsedSinceBaselineMs - loggedSinceBaselineMs);
+    if (unloggedMs > 0) {
+      const entertainmentKey = ENTERTAINMENT_CATEGORY.toLowerCase();
+      const existingEntertainment = map.get(entertainmentKey);
+      if (existingEntertainment) {
+        existingEntertainment.durationMs += unloggedMs;
+      } else {
+        map.set(entertainmentKey, {
+          display: ENTERTAINMENT_CATEGORY,
+          durationMs: unloggedMs,
+        });
+      }
+      grandTotalMs += unloggedMs;
+    }
   }
 
   const rawTotals: CategoryTotal[] = Array.from(map.values()).map((v) => ({
