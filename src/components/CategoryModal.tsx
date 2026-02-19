@@ -37,7 +37,7 @@ export function CategoryModal(props: {
     onSubmit(category);
   }
 
-  const PRESETS = ["Entertainment", "Work", "Python", "Study"];
+  const PRESETS = ["Entertainment", "Work", "Python", "Study", "Shower"];
 
   return (
     <div
@@ -157,5 +157,4 @@ export function CategoryModal(props: {
     </div>
   );
 }
-
 

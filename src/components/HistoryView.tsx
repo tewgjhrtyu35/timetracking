@@ -2,7 +2,7 @@ import React from "react";
 import type { CategoryTotal, TimeEntry, TimeEntryDraft } from "../types";
 import { api } from "../api/client";
 import { getLogicalDate } from "../utils/dateUtils";
-import { applyCapsToCategoryTotals, normalizeCategoryKey } from "../utils/categoryCaps";
+import { applyCapsToCategoryTotals, normalizeCategoryKey, toAggregationCategory } from "../utils/categoryCaps";
 import { enforceCappedEdit } from "../utils/entryEnforcement";
 
 function formatDuration(ms: number) {
@@ -36,7 +36,13 @@ type DaySummary = {
   }[];
 };
 
-export function HistoryView({ entries: initialEntries }: { entries: TimeEntry[] }) {
+export function HistoryView({
+  entries: initialEntries,
+  onEntriesChanged,
+}: {
+  entries: TimeEntry[];
+  onEntriesChanged?: (entries: TimeEntry[]) => void;
+}) {
   // Local state to reflect immediate updates (optimistic UI or re-fetch)
   const [entries, setEntries] = React.useState(initialEntries);
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -58,7 +64,7 @@ export function HistoryView({ entries: initialEntries }: { entries: TimeEntry[] 
       if (!days.has(dayKey)) days.set(dayKey, new Map());
       
       const dayCats = days.get(dayKey)!;
-      const cat = entry.category.trim() || "Uncategorized";
+      const cat = toAggregationCategory(entry.category) || "Uncategorized";
       
       if (!dayCats.has(cat)) dayCats.set(cat, []);
       dayCats.get(cat)!.push(entry);
@@ -142,13 +148,16 @@ export function HistoryView({ entries: initialEntries }: { entries: TimeEntry[] 
 
     const refreshed = await enforceCappedEdit(api, originalEntry.id, updatedDraft);
     setEntries(refreshed);
+    onEntriesChanged?.(refreshed);
     setEditingId(null);
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this entry?")) return;
     await api.deleteEntry(id);
-    setEntries(prev => prev.filter(e => e.id !== id));
+    const nextEntries = entries.filter((e) => e.id !== id);
+    setEntries(nextEntries);
+    onEntriesChanged?.(nextEntries);
   }
 
   if (history.length === 0) {

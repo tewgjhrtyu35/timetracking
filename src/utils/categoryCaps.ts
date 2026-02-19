@@ -2,10 +2,11 @@ import type { CategoryTotal, TimeEntry, TimeEntryDraft } from "../types";
 import { getLogicalDayEnd, getLogicalDayStart } from "./dateUtils";
 
 export const ENTERTAINMENT_CATEGORY = "Entertainment";
+export const AUTO_ENTERTAINMENT_CATEGORY = "Entertainment (Auto)";
 
 export const CAPPED_CATEGORY_LIMITS_MS = {
   shower: 45 * 60 * 1000,
-  python: 90 * 60 * 1000,
+  python: 30 * 60 * 1000,
 } as const;
 
 export type CappedCategoryKey = keyof typeof CAPPED_CATEGORY_LIMITS_MS;
@@ -14,8 +15,18 @@ export function normalizeCategoryKey(category: string): string {
   return category.trim().toLowerCase();
 }
 
+export function isAutoEntertainmentCategory(category: string): boolean {
+  return normalizeCategoryKey(category) === normalizeCategoryKey(AUTO_ENTERTAINMENT_CATEGORY);
+}
+
+export function toAggregationCategory(category: string): string {
+  const trimmed = category.trim();
+  if (isAutoEntertainmentCategory(trimmed)) return ENTERTAINMENT_CATEGORY;
+  return trimmed;
+}
+
 export function getCappedCategoryKey(category: string): CappedCategoryKey | null {
-  const normalized = normalizeCategoryKey(category);
+  const normalized = normalizeCategoryKey(toAggregationCategory(category));
   if (normalized in CAPPED_CATEGORY_LIMITS_MS) {
     return normalized as CappedCategoryKey;
   }
@@ -104,7 +115,7 @@ export function computeUsedCappedMsForDay(
     const stoppedAt = new Date(entry.stoppedAt).getTime();
     if (Number.isNaN(stoppedAt)) continue;
     if (stoppedAt < dayStart || stoppedAt >= dayEnd) continue;
-    if (normalizeCategoryKey(entry.category) !== cappedCategory) continue;
+    if (normalizeCategoryKey(toAggregationCategory(entry.category)) !== cappedCategory) continue;
     usedMs += Math.max(0, entry.durationMs);
   }
 
@@ -115,8 +126,9 @@ export function applyCapsToCategoryTotals(totals: CategoryTotal[]): CategoryTota
   const aggregate = new Map<string, { display: string; durationMs: number }>();
 
   for (const total of totals) {
-    const key = normalizeCategoryKey(total.category);
-    const display = total.category.trim() || "Uncategorized";
+    const aggregationCategory = toAggregationCategory(total.category);
+    const key = normalizeCategoryKey(aggregationCategory);
+    const display = aggregationCategory || "Uncategorized";
     const prev = aggregate.get(key);
     if (prev) {
       prev.durationMs += Math.max(0, total.durationMs);

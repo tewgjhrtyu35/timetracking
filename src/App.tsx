@@ -8,11 +8,14 @@ import { CountdownTimer } from "./components/CountdownTimer";
 import { ManualEntry } from "./components/ManualEntry";
 import { HistoryView } from "./components/HistoryView";
 import { enforceCappedAdd } from "./utils/entryEnforcement";
+import { reconcileTodayAutoEntertainment } from "./utils/autoEntertainment";
 
 type View = "timer" | "history";
 
 export function App() {
   const stopwatchRef = React.useRef<StopwatchHandle>(null);
+  const reconcileInFlightRef = React.useRef(false);
+  const reconcileQueuedRef = React.useRef(false);
 
   const [entries, setEntries] = React.useState<TimeEntry[]>([]);
   const [pendingDraft, setPendingDraft] = React.useState<TimeEntryDraft | null>(
@@ -21,17 +24,40 @@ export function App() {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [view, setView] = React.useState<View>("timer");
 
-  React.useEffect(() => {
-    void (async () => {
-      const loaded = await api.listEntries();
-      setEntries(loaded);
-    })();
+  const runReconcile = React.useCallback(async () => {
+    reconcileQueuedRef.current = true;
+    if (reconcileInFlightRef.current) return;
+
+    reconcileInFlightRef.current = true;
+    try {
+      while (reconcileQueuedRef.current) {
+        reconcileQueuedRef.current = false;
+        const currentEntries = await api.listEntries();
+        await reconcileTodayAutoEntertainment(api, currentEntries, new Date());
+        const refreshedEntries = await api.listEntries();
+        setEntries(refreshedEntries);
+      }
+    } finally {
+      reconcileInFlightRef.current = false;
+    }
   }, []);
+
+  React.useEffect(() => {
+    void runReconcile();
+  }, [runReconcile]);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      void runReconcile();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [runReconcile]);
 
   async function handleSubmitCategory(category: string) {
     if (!pendingDraft) return;
     const saved = await enforceCappedAdd(api, { ...pendingDraft, category });
     setEntries((prev) => [...saved, ...prev]);
+    void runReconcile();
     setPendingDraft(null);
     setIsModalOpen(false);
     stopwatchRef.current?.reset();
@@ -126,7 +152,10 @@ export function App() {
             </div>
             
             <div style={{ marginTop: 24 }}>
-               <CountdownTimer onEntryAdded={(entry) => setEntries(prev => [entry, ...prev])} />
+               <CountdownTimer onEntryAdded={(entry) => {
+                 setEntries(prev => [entry, ...prev]);
+                 void runReconcile();
+               }} />
             </div>
           </section>
 
@@ -149,12 +178,21 @@ export function App() {
               <CategoryTotals entries={entries} />
             </div>
 
-            <ManualEntry onEntryAdded={(entry) => setEntries(prev => [entry, ...prev])} />
+            <ManualEntry onEntryAdded={(entry) => {
+              setEntries(prev => [entry, ...prev]);
+              void runReconcile();
+            }} />
           </section>
         </main>
       ) : (
         <main style={{ maxWidth: 800, margin: "0 auto", width: "100%" }}>
-          <HistoryView entries={entries} />
+          <HistoryView
+            entries={entries}
+            onEntriesChanged={(nextEntries) => {
+              setEntries(nextEntries);
+              void runReconcile();
+            }}
+          />
         </main>
       )}
 

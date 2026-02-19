@@ -1,7 +1,7 @@
 import React from "react";
 import type { CategoryTotal, TimeEntry } from "../types";
 import { getLogicalDate, getLogicalDayStart, getLogicalDayEnd } from "../utils/dateUtils";
-import { applyCapsToCategoryTotals } from "../utils/categoryCaps";
+import { applyCapsToCategoryTotals, toAggregationCategory } from "../utils/categoryCaps";
 
 function formatDuration(ms: number) {
   const totalSeconds = Math.floor(ms / 1000);
@@ -14,37 +14,9 @@ function formatDuration(ms: number) {
   return `${pad2(minutes)}:${pad2(seconds)}`;
 }
 
-function getTodayKey(): string {
-  const logical = getLogicalDate(new Date());
-  const y = logical.getFullYear();
-  const m = String(logical.getMonth() + 1).padStart(2, "0");
-  const d = String(logical.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function getDayStartOverrideKey(): string {
-  return `timetracking-day-start-${getTodayKey()}`;
-}
-
-function formatTimeHHMM(date: Date): string {
-  const h = String(date.getHours()).padStart(2, "0");
-  const m = String(date.getMinutes()).padStart(2, "0");
-  return `${h}:${m}`;
-}
-
-function parseTimeHHMM(str: string): { hours: number; minutes: number } | null {
-  const match = str.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-  const hours = parseInt(match[1], 10);
-  const minutes = parseInt(match[2], 10);
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
-  return { hours, minutes };
-}
-
 function computeTodayTotals(entries: TimeEntry[]): {
   totals: CategoryTotal[];
   grandTotalMs: number;
-  firstEntryStartedAt: string | null;
 } {
   const now = new Date();
   const dayStart = getLogicalDayStart(now).getTime();
@@ -52,22 +24,13 @@ function computeTodayTotals(entries: TimeEntry[]): {
 
   const map = new Map<string, { display: string; durationMs: number }>();
   let grandTotalMs = 0;
-  let firstEntryStartedAt: string | null = null;
-  let firstEntryTime = Infinity;
 
   for (const e of entries) {
     const t = new Date(e.stoppedAt).getTime();
     if (Number.isNaN(t)) continue;
     if (t < dayStart || t >= dayEnd) continue;
 
-    // Track the earliest startedAt for today
-    const startedAtTime = new Date(e.startedAt).getTime();
-    if (!Number.isNaN(startedAtTime) && startedAtTime < firstEntryTime) {
-      firstEntryTime = startedAtTime;
-      firstEntryStartedAt = e.startedAt;
-    }
-
-    const display = e.category.trim() || "Uncategorized";
+    const display = toAggregationCategory(e.category) || "Uncategorized";
     const key = display.toLowerCase();
 
     const prev = map.get(key);
@@ -82,25 +45,15 @@ function computeTodayTotals(entries: TimeEntry[]): {
     durationMs: v.durationMs,
   }));
   const totals = applyCapsToCategoryTotals(rawTotals);
-  return { totals, grandTotalMs, firstEntryStartedAt };
+  return { totals, grandTotalMs };
 }
 
 export function CategoryTotals({ entries }: { entries: TimeEntry[] }) {
-  const { totals, grandTotalMs, firstEntryStartedAt } = React.useMemo(
+  const { totals, grandTotalMs } = React.useMemo(
     () => computeTodayTotals(entries),
     [entries],
   );
 
-  // State for editable start time
-  const [startTimeOverride, setStartTimeOverride] = React.useState<string | null>(() => {
-    try {
-      return localStorage.getItem(getDayStartOverrideKey());
-    } catch {
-      return null;
-    }
-  });
-  const [isEditingStartTime, setIsEditingStartTime] = React.useState(false);
-  const [startTimeInput, setStartTimeInput] = React.useState("");
   const [currentTime, setCurrentTime] = React.useState(Date.now());
 
   // Update current time every 30 seconds for utilization calculation
@@ -109,57 +62,20 @@ export function CategoryTotals({ entries }: { entries: TimeEntry[] }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Determine actual day start time
+  // Fixed utilization baseline: 08:30 in the current logical day.
   const dayStartTime = React.useMemo(() => {
-    // First priority: localStorage override for today
-    if (startTimeOverride) {
-      const parsed = parseTimeHHMM(startTimeOverride);
-      if (parsed) {
-        const logical = getLogicalDate(new Date());
-        const today = new Date(logical.getFullYear(), logical.getMonth(), logical.getDate());
-        today.setHours(parsed.hours, parsed.minutes, 0, 0);
-        return today.getTime();
-      }
-    }
-    // Second priority: first entry's startedAt
-    if (firstEntryStartedAt) {
-      return new Date(firstEntryStartedAt).getTime();
-    }
-    return null;
-  }, [startTimeOverride, firstEntryStartedAt]);
+    const logical = getLogicalDate(new Date(currentTime));
+    const today = new Date(logical.getFullYear(), logical.getMonth(), logical.getDate());
+    today.setHours(8, 30, 0, 0);
+    return today.getTime();
+  }, [currentTime]);
 
   // Calculate utilization
   const utilization = React.useMemo(() => {
-    if (!dayStartTime || grandTotalMs === 0) return null;
     const elapsedMs = currentTime - dayStartTime;
     if (elapsedMs <= 0) return null;
     return Math.round((grandTotalMs / elapsedMs) * 100);
   }, [dayStartTime, grandTotalMs, currentTime]);
-
-  const displayStartTime = dayStartTime ? formatTimeHHMM(new Date(dayStartTime)) : null;
-
-  function handleStartTimeClick() {
-    setStartTimeInput(displayStartTime || "");
-    setIsEditingStartTime(true);
-  }
-
-  function handleStartTimeSave() {
-    const parsed = parseTimeHHMM(startTimeInput.trim());
-    if (parsed) {
-      const timeStr = `${String(parsed.hours).padStart(2, "0")}:${String(parsed.minutes).padStart(2, "0")}`;
-      try {
-        localStorage.setItem(getDayStartOverrideKey(), timeStr);
-      } catch {
-        // ignore
-      }
-      setStartTimeOverride(timeStr);
-    }
-    setIsEditingStartTime(false);
-  }
-
-  function handleStartTimeCancel() {
-    setIsEditingStartTime(false);
-  }
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -192,67 +108,7 @@ export function CategoryTotals({ entries }: { entries: TimeEntry[] }) {
             </span>
           </div>
           <div style={{ fontSize: 12, opacity: 0.8, display: "flex", alignItems: "center", gap: 6 }}>
-            {isEditingStartTime ? (
-              <>
-                <input
-                  type="text"
-                  value={startTimeInput}
-                  onChange={(e) => setStartTimeInput(e.target.value)}
-                  placeholder="HH:MM"
-                  style={{
-                    width: 60,
-                    padding: "4px 6px",
-                    fontSize: 12,
-                    borderRadius: 6,
-                    border: "1px solid rgba(255,255,255,0.2)",
-                    background: "rgba(0,0,0,0.3)",
-                    color: "white",
-                    textAlign: "center",
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleStartTimeSave();
-                    if (e.key === "Escape") handleStartTimeCancel();
-                  }}
-                  autoFocus
-                />
-                <button
-                  onClick={handleStartTimeSave}
-                  style={{
-                    padding: "4px 8px",
-                    fontSize: 11,
-                    borderRadius: 6,
-                    border: "none",
-                    background: "rgba(80,200,120,0.2)",
-                    color: "#69db7c",
-                    cursor: "pointer",
-                  }}
-                >
-                  Save
-                </button>
-                <button
-                  onClick={handleStartTimeCancel}
-                  style={{
-                    padding: "4px 8px",
-                    fontSize: 11,
-                    borderRadius: 6,
-                    border: "none",
-                    background: "rgba(255,255,255,0.1)",
-                    color: "white",
-                    cursor: "pointer",
-                  }}
-                >
-                  ✕
-                </button>
-              </>
-            ) : (
-              <span
-                onClick={handleStartTimeClick}
-                style={{ cursor: "pointer", textDecoration: "underline dotted", textUnderlineOffset: 3 }}
-                title="Click to edit start time"
-              >
-                Start: {displayStartTime || "—"}
-              </span>
-            )}
+            <span>Start: 08:30</span>
           </div>
         </div>
       )}
@@ -294,4 +150,3 @@ export function CategoryTotals({ entries }: { entries: TimeEntry[] }) {
     </div>
   );
 }
-
